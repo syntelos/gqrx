@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui network
 
 TARGET = gqrx
 TEMPLATE = app
@@ -78,7 +78,10 @@ SOURCES += \
     tlm/arissat/scale_therm.c \
     tlm/arissat/scale_psu.c \
     tlm/arissat/scale_ppt.c \
-    receivers/wfmrx.cpp
+    receivers/wfmrx.cpp \
+    tlm/apserv/ApServ.cpp \
+    tlm/apserv/ApClient.cpp \
+    tlm/apserv/ApText.cpp
 
 HEADERS += \
     applications/gqrx/mainwindow.h \
@@ -126,7 +129,10 @@ HEADERS += \
     tlm/arissat/scale_therm.h \
     tlm/arissat/scale_psu.h \
     tlm/arissat/scale_ppt.h \
-    receivers/wfmrx.h
+    receivers/wfmrx.h \
+    tlm/apserv/ApServ.h \
+    tlm/apserv/ApClient.h \
+    tlm/apserv/ApText.h
 
 FORMS += \
     applications/gqrx/mainwindow.ui \
@@ -165,3 +171,7 @@ OTHER_FILES += \
 
 RESOURCES += \
     icons.qrc
+
+
+
+
