@@ -20,15 +20,17 @@
  */
 
 #include <QThread>
+#include <QDebug>
 
 #include "ApClient.h"
 
 ApClient::ApClient(ApServ& service, QTcpSocket& socket) :
     QRunnable(),
-    cycle(service.getClientWait()),
-    service(service.getText()),
+    service(service),
+    text(service.getText()),
     socket(socket),
-    version(0)
+    version(0),
+    cycle(service.getClientWait())
 {
 }
 ApClient::~ApClient()
@@ -41,26 +43,38 @@ bool ApClient::autoDelete(){
 }
 void ApClient::run(){
 
+    QThread *thread = QThread::currentThread();
+
     bool error = false;
 
-    while (this->socket.isValid()){
+    while (this->service.isAlive() && this->socket.isValid()){
 
-        this->service.enter();
+        this->text.enter();
+        /*
+         * Polling via read lock on shared data buffer
+         */
+        if (this->text.isReady(this->version)){
 
-        if (this->service.isReady(this->version)){
+            this->version = this->text.getVersion();
 
-            this->version = this->service.getVersion();
-
-            error = (-1 == this->socket.write(this->service));
+            error = (-1 == this->socket.write(this->text));
         }
 
-        this->service.exit();
+        this->text.exit();
 
-        if (error)
+        if (error || (!this->service.isAlive())){
+
             break;
-        else
-            QThread::currentThread()->wait(this->cycle);
+        }
+        else {
+
+            //thread->msleep(this->cycle);
+        }
     }
 
+    qDebug() << ("client shutdown\n");
+
     this->socket.close();
+
+    qDebug() << ("client end\n");
 }

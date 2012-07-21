@@ -23,6 +23,7 @@
 #include <QMainWindow>
 #include <QVarLengthArray>
 #include "dsp/afsk1200/cafsk12.h"
+#include "tlm/apserv/ApServ.h"
 
 
 namespace Ui {
@@ -39,6 +40,8 @@ public:
     explicit Afsk1200Win(QWidget *parent = 0);
     ~Afsk1200Win();
     void process_samples(float *buffer, int length);
+    void startService();
+    void shutdownService();
 
 protected:
     void closeEvent(QCloseEvent *ev);
@@ -50,6 +53,7 @@ private slots:
     void on_actionClear_triggered();
     void on_actionSave_triggered();
     void on_actionInfo_triggered();
+    void on_actionService_triggered();
 
 private:
     Ui::Afsk1200Win *ui;  /*! Qt Designer form. */
@@ -57,6 +61,8 @@ private:
     CAfsk12 *decoder;     /*! The AFSK1200 decoder object. */
 
     QVarLengthArray<float, 16384> tmpbuf;   /*! Needed to remember "overlap" smples. */
+
+    ApServ *apserv;
 };
 
 #endif // AFSK1200WIN_H

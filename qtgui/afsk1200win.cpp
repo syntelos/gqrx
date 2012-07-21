@@ -22,6 +22,7 @@
 #include <QFile>
 #include <QDir>
 #include <QDebug>
+#include <QThreadPool>
 #include "afsk1200win.h"
 #include "ui_afsk1200win.h"
 
@@ -44,6 +45,9 @@ Afsk1200Win::Afsk1200Win(QWidget *parent) :
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     ui->toolBar->addWidget(spacer);
     ui->toolBar->addAction(ui->actionInfo);
+
+    /* ApServ */
+    apserv = 0;
 
     /* AFSK1200 decoder */
     decoder = new CAfsk12(this);
@@ -139,4 +143,53 @@ void Afsk1200Win::on_actionInfo_triggered()
                           "at <a href='http://qtmm.sf.net/'>http://qtmm.sf.net</a>.</p>"
                           ).arg(VERSION));
 
+}
+/*!
+ * \brief User clicked service button.
+ * 
+ * Toggle the data service according to the window state.  If the
+ * service should be dysfunctional, for example the port is occupied,
+ * the service will sort correctly under toggle sequences.  Currently
+ * this is not signalling to the UI (and this class), but functions
+ * correctly.
+ *
+ * For example, if the port should become available, a sequence of
+ * start and shutdown will raise the data service correctly.
+ */
+void Afsk1200Win::on_actionService_triggered()
+{
+    if (NULL == apserv)
+        startService();
+    else 
+        shutdownService();
+}
+/*
+ * Run data service in global thread pool
+ */
+void Afsk1200Win::startService(){
+
+    if (NULL == apserv){
+
+        apserv = new ApServ(this);
+
+        QThreadPool::globalInstance()->start(apserv);
+
+        connect(decoder, SIGNAL(newMessage(QString)), apserv, SLOT(update(QString)));
+    }
+}
+/*
+ * Thread pool auto delete: the shutdown process is responsible for
+ * closing the service socket, terminating clients, and releasing
+ * thread and memory resources.
+ */
+void Afsk1200Win::shutdownService(){
+
+    if (apserv){
+
+        disconnect(decoder,SLOT(update(QString)));
+
+        apserv->shutdown();
+
+        apserv = NULL;
+    }
 }

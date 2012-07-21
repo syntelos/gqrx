@@ -856,7 +856,7 @@ void MainWindow::audioFftTimeout()
 
     if (fftsize == 0) {
         /* nothing to do, wait until next activation. */
-        qDebug() << "No audio FFT data.";
+        //qDebug() << "No audio FFT data.";
         return;
     }
 

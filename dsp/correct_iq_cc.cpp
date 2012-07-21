@@ -81,7 +81,7 @@ int dc_corr_cc::work(int noutput_items,
 #ifndef QT_NO_DEBUG_OUTPUT
     if (d_cnt == 100)
     {
-        std::cout << "AVG I/Q: " << d_avg_i << "/" << d_avg_q << std::endl;
+        //std::cout << "AVG I/Q: " << d_avg_i << "/" << d_avg_q << std::endl;
         d_cnt = 0;
     }
     else

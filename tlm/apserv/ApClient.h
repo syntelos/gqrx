@@ -44,7 +44,8 @@ public:
     void run();
 
 private:
-    ApText& service;
+    ApServ& service;
+    ApText& text;
     QTcpSocket& socket;
     int version;
     unsigned long cycle;

@@ -26,6 +26,7 @@
 #include <QTcpSocket>
 #include <QThreadPool>
 #include <QRunnable>
+#include <QObject>
 
 class ApServ;
 
@@ -34,18 +35,48 @@ class ApServ;
 
 /*! \brief Data dump service, default port 6170.
  * 
+ *
+ * \section Startup
+ * 
  * Run this in the global thread pool, for example...
  * 
  * \code
- *     ApServ *apserv = new ApServ();
+ *     this->apserv = new ApServ();
  *
  *     // optionally set portnum or client wait
  * 
- *     QThreadPool::globalInstance()->start(apserv);
+ *     QThreadPool::globalInstance()->start(this->apserv);
  * \endcode
  * 
  * After construction and before starting, optionally define port
  * number and client polling wait time.
+ * 
+ *
+ * \section Shutdown
+ * 
+ * Simply call the "shutdown" method, the threads will handle
+ * tear-down and cleanup of all (memory, network and thread)
+ * resources.  
+ * 
+ * After calling shutdown, the caller would disconnect any signals and
+ * void its reference to the <ApServ> class -- for example...
+ * 
+ * \code
+ *     this->apserv = 0;
+ * \endcode
+ * 
+ *
+ * \section Sending data
+ * 
+ * This class accepts input on its "update" methods, which are
+ * programmable directly or via the Qt slots framework.
+ * 
+ * The data received via "update" is repeated verbatum to each TCP
+ * network client.  The caller and client are responsible for the
+ * content of this data.  See "Operation", next.
+ * 
+ *
+ * \section Operation
  * 
  * Each client periodically checks on a shared buffer, <ApText>.  When
  * the shared buffer has changes, each client writes the apparent
@@ -57,21 +88,67 @@ class ApServ;
  * on the application and use of this facility, the "most recent
  * update" behavior may be desireable or undesireable.  This facility
  * is designed for application and use cases where this behavior is
- * desireable, and presents no solution beyond increasing the
- * performance of the underlying hardware and network (or possibly the
- * application architecture).
+ * desireable, and presents no solution otherwise -- beyond increasing
+ * the performance of the underlying hardware and network (or possibly
+ * the application architecture).
  * 
  * A design for a guaranteed delivery requirement would employ a data
  * structure different from <ApText>, either a multi-user queue or one
- * client on a conventional queue.
+ * client on a conventional queue.  
+ * 
+ * 
+ * \section Service period
+ * 
+ * The service period parameter defines the frequency with which the
+ * principal service thread checks for shutdown.  
+ * 
+ * The default value of 500ms is intended to be short enough that the
+ * actual shutdown activity is relevant to user interaction,
+ * experience and expectation -- while this polling should not
+ * interfere with the principal operation of GQRX.
+ * 
+ * The shutdown process is handled in a highly independent way (via
+ * the Qt thread pool), so the only obligation here is to user
+ * experience.
+ * 
+ * \section Client wait
+ * 
+ * Each client sleeps for a period (defined by this parameter) between
+ * locking and polling the shared data buffer.  The value of this
+ * parameter is a constraint on the throughput to each client.
+ * 
+ * \subsection Few clients
+ * 
+ * The default value of 500ms is intended for timely updates in the
+ * neighborhood of once per second -- for fewer clients than CPUs.
+ * 
+ * \subsection Many clients
+ * 
+ * With a "client wait" value less than the update frequency, multiple
+ * client threads may converge in time (to perform their I/O
+ * operations concurrently).
+ * 
+ * This would not be practical for more clients than CPUs, as in this
+ * moment GQRX could be starved of processing cycles.  In this case,
+ * and update frequency plus ten percent (for example) might preserve
+ * the operation of GQRX while occasionally starving a client of an
+ * update.
+ * 
+ * 
+ * \section Example Application
+ * 
+ * See <Afsk1200Win>.  This application employs the default values for
+ * port number (6170), and client polling delay (500ms).
+ * 
  * 
  * \author John Pritchard, jdp@ulsf.net
  */
-class ApServ : public QRunnable
+class ApServ : public QObject, public QRunnable
 {
+    Q_OBJECT
 
 public:
-    ApServ();
+    explicit ApServ(QObject *parent = 0);
     /*
      * This destructor will block until all clients have terminated
      */
@@ -86,7 +163,7 @@ public:
      */
     quint16 setPortnum(quint16 p);
     /*
-     * Default 300ms
+     * Default 500ms
      */
     unsigned long getClientWait();
     /*
@@ -96,17 +173,14 @@ public:
      */
     unsigned long setClientWait(unsigned long millis);
     /*
-     * Modify the shared buffer with content to write to all clients
+     * Default 500ms
      */
-    void update(char *buffer, int length);
+    unsigned long getServicePeriod();
     /*
-     * Modify the shared buffer with content to write to all clients
+     * Define service wait between polling on shutdown. Must be
+     * greater than zero.  Default 500ms.  No change after starting.
      */
-    void update(QByteArray& buffer);
-    /*
-     * Modify the shared buffer with content to write to all clients
-     */
-    void update(QString& buffer);
+    unsigned long setServicePeriod(unsigned long millis);
     /*
      * Client reference to the shared data buffer
      */
@@ -128,6 +202,28 @@ public:
      * QRunnable
      */
     void run();
+    /*
+     * Accept no new clients
+     */
+    void shutdown();
+    /*
+     * Current number of clients
+     */
+    int getNumClients();
+
+public slots:
+    /*
+     * Modify the shared buffer with content to write to all clients
+     */
+    void update(char *buffer, int length);
+    /*
+     * Modify the shared buffer with content to write to all clients
+     */
+    void update(QByteArray& buffer);
+    /*
+     * Modify the shared buffer with content to write to all clients
+     */
+    void update(QString& buffer);
 
 private:
     ApText* text;
@@ -135,8 +231,10 @@ private:
     QTcpServer *server;
     quint16 portnum;
     unsigned long clientWait;
+    unsigned long servicePeriod;
     bool failedOpen;
     bool alive;
+    bool closing;
 };
 
 #endif

@@ -20,19 +20,23 @@
  */
 
 #include <QHostAddress>
+#include <QDebug>
 
 #include "ApServ.h"
 
-ApServ::ApServ() :
+ApServ::ApServ(QObject *p) :
+    QObject(p),
     QRunnable(),
-    text(),
-    pool(),
+    text(new ApText()),
+    pool(new QThreadPool(this)),
+    server(),
     portnum(6170),
     clientWait(500),
+    servicePeriod(500),
     failedOpen(false),
-    alive(false)
+    alive(false),
+    closing(false)
 {
-    this->server = 0;
 }
 ApServ::~ApServ()
 {
@@ -70,7 +74,7 @@ quint16 ApServ::getPortnum(){
 }
 quint16 ApServ::setPortnum(quint16 p){
 
-    if (0 == this->server){
+    if (NULL == this->server){
 
         if (0 < p){
 
@@ -85,7 +89,7 @@ unsigned long ApServ::getClientWait(){
 }
 unsigned long ApServ::setClientWait(unsigned long ms){
 
-    if (0 == this->server){
+    if (NULL == this->server){
 
         if (0 < ms){
 
@@ -94,12 +98,35 @@ unsigned long ApServ::setClientWait(unsigned long ms){
     }
     return this->clientWait;
 }
+unsigned long ApServ::getServicePeriod(){
+
+    return this->servicePeriod;
+}
+unsigned long ApServ::setServicePeriod(unsigned long ms){
+
+    if (NULL == this->server){
+
+        if (0 < ms){
+
+            this->servicePeriod = ms;
+        }
+    }
+    return this->servicePeriod;
+}
 bool ApServ::autoDelete(){
 
     return true;
 }
+void ApServ::shutdown(){
+
+    this->closing = true;
+}
+int ApServ::getNumClients(){
+
+    return this->pool->activeThreadCount();
+}
 void ApServ::run(){
-    if (0 == this->server){
+    if (NULL == this->server){
 
         this->server = new QTcpServer();
 
@@ -107,23 +134,48 @@ void ApServ::run(){
 
             this->failedOpen = false;
 
-            while (this->server->waitForNewConnection()){
+            while (!this->closing){
 
                 this->alive = true;
+                /*
+                 * Polling on shutdown
+                 */
+                if (this->server->waitForNewConnection(this->servicePeriod)){
+                    /*
+                     * Accept client
+                     */
+                    QTcpSocket* sock = this->server->nextPendingConnection();
 
-                QTcpSocket* sock = this->server->nextPendingConnection();
+                    if (sock){
 
-                if (0 != sock){
+                        ApClient *cli = new ApClient(*this,*sock);
 
-                    ApClient *cli = new ApClient(*this,*sock);
-
-                    this->pool->start(cli);
+                        if (!this->pool->tryStart(cli)){
+                            /*
+                             * Don't accept more than
+                             * QThreadPool::maxThreadCount clients
+                             */
+                            delete cli;
+                        }
+                    }
                 }
             }
+            qDebug() << ("Server shutdown\n");
+
             this->alive = false;
+
             this->server->close();
+            /*
+             * Clients are polling ApServ::isAlive
+             * 
+             * When this function returns, the thread pool will
+             * auto-delete it
+             */
+            this->pool->waitForDone();
         }
         else {
+            printf("Server failed open\n");
+
             this->failedOpen = true;
             this->alive = false;
         }

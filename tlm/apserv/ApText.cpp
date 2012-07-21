@@ -24,7 +24,7 @@
 
 ApText::ApText() :
     QByteArray(),
-    lock(),
+    lock(new QReadWriteLock()),
     version(0)
 {
 }
@@ -54,29 +54,44 @@ int ApText::getVersion(){
     return this->version;
 }
 void ApText::update(char *buffer, int length){
-    this->lock->lockForWrite();
-    {
-        this->version++;
-        this->clear();
-        this->append(buffer,length);
+    if (NULL != buffer && 0 < length){
+        this->lock->lockForWrite();
+        {
+            this->version++;
+            if (0 == this->version)
+                this->version = 1;
+
+            this->clear();
+            this->append(buffer,length);
+        }
+        this->lock->unlock();
     }
-    this->lock->unlock();
 }
 void ApText::update(QByteArray& buffer){
-    this->lock->lockForWrite();
-    {
-        this->version++;
-        this->clear();
-        this->append(buffer);
+    if (0 < buffer.size()){
+        this->lock->lockForWrite();
+        {
+            this->version++;
+            if (0 == this->version)
+                this->version = 1;
+
+            this->clear();
+            this->append(buffer);
+        }
+        this->lock->unlock();
     }
-    this->lock->unlock();
 }
 void ApText::update(QString& buffer){
-    this->lock->lockForWrite();
-    {
-        this->version++;
-        this->clear();
-        this->append(buffer);
+    if (0 < buffer.size()){
+        this->lock->lockForWrite();
+        {
+            this->version++;
+            if (0 == this->version)
+                this->version = 1;
+
+            this->clear();
+            this->append(buffer);
+        }
+        this->lock->unlock();
     }
-    this->lock->unlock();
 }
