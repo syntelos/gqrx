@@ -27,16 +27,18 @@
 ApServ::ApServ(QObject *p) :
     QObject(p),
     QRunnable(),
-    text(new ApText()),
-    pool(new QThreadPool(this)),
+    text(new ApText(this)),
+    pool(new ApClient*[10]),
     server(),
     portnum(6170),
     clientWait(500),
     servicePeriod(500),
+    numClients(10),
     failedOpen(false),
     alive(false),
     closing(false)
 {
+    this->poolset();
 }
 ApServ::~ApServ()
 {
@@ -52,21 +54,21 @@ bool ApServ::isAlive(){
 
     return this->alive;
 }
-void ApServ::update(char *buffer, int length){
+void ApServ::update(const char *buffer, int length){
 
     this->text->update(buffer,length);
 }
-void ApServ::update(QByteArray& buffer){
+void ApServ::update(const QByteArray& buffer){
 
     this->text->update(buffer);
 }
-void ApServ::update(QString& buffer){
+void ApServ::update(const QString& buffer){
 
     this->text->update(buffer);
 }
-ApText& ApServ::getText(){
+ApText* ApServ::getText(){
 
-    return *(this->text);
+    return this->text;
 }
 quint16 ApServ::getPortnum(){
 
@@ -113,6 +115,39 @@ unsigned long ApServ::setServicePeriod(unsigned long ms){
     }
     return this->servicePeriod;
 }
+int ApServ::getNumClients(){
+
+    return this->numClients;
+}
+int ApServ::setNumClients(int num){
+
+    if (NULL == this->server){
+
+        if (0 < num){
+
+            this->numClients = num;
+
+            delete this->pool;
+
+            this->pool = new ApClient*[num];
+
+            this->poolset();
+        }
+    }
+    return this->numClients;
+}
+/*
+ * Portable memset
+ */
+void ApServ::poolset(){
+
+    int num = this->numClients;
+
+    for (int cc = 0; cc < num; cc++){
+
+        this->pool[cc] = NULL;
+    }
+}
 bool ApServ::autoDelete(){
 
     return true;
@@ -121,16 +156,67 @@ void ApServ::shutdown(){
 
     this->closing = true;
 }
-int ApServ::getNumClients(){
+bool ApServ::cleanup(){
 
-    return this->pool->activeThreadCount();
+    bool more = false;
+
+    int count = this->numClients;
+
+    for (int cc = 0; cc < count; cc++){
+
+        ApClient* client = this->pool[cc];
+
+        if (NULL != client){
+
+            if (client->isNotAlive()){
+
+                this->pool[cc] = NULL;
+
+                delete client;
+            }
+            else {
+                more = true;
+            }
+        }
+    }
+    return more;
+}
+void ApServ::waitfor(){
+
+    int count = this->numClients;
+
+    for (int cc = 0; cc < count; cc++){
+
+        ApClient* client = this->pool[cc];
+
+        if (NULL != client && client->isAlive()){
+
+            client->wait();
+
+            return;
+        }
+    }
+}
+int ApServ::next(){
+
+    int count = this->numClients;
+
+    for (int cc = 0; cc < count; cc++){
+
+        if (NULL == this->pool[cc])
+            return cc;
+    }
+    return -1;
 }
 void ApServ::run(){
+
     if (NULL == this->server){
 
         this->server = new QTcpServer();
 
         if (this->server->listen(QHostAddress::Any,this->portnum)){
+
+            qDebug() << "Server accepting connections on port " << this->portnum;
 
             this->failedOpen = false;
 
@@ -146,35 +232,39 @@ void ApServ::run(){
                      */
                     QTcpSocket* sock = this->server->nextPendingConnection();
 
-                    if (sock){
+                    if (NULL != sock){
 
-                        ApClient *cli = new ApClient(*this,*sock);
+                        int next = this->next();
 
-                        if (!this->pool->tryStart(cli)){
-                            /*
-                             * Don't accept more than
-                             * QThreadPool::maxThreadCount clients
-                             */
-                            delete cli;
+                        if (-1 < next){
+
+                            ApClient *cli = new ApClient(this,sock);
+
+                            this->pool[next] = cli;
+
+                            cli->start();
                         }
+                        else
+                            sock->close();
                     }
                 }
+                else {
+
+                    this->cleanup();
+                }
             }
-            qDebug() << ("Server shutdown\n");
 
             this->alive = false;
 
             this->server->close();
-            /*
-             * Clients are polling ApServ::isAlive
-             * 
-             * When this function returns, the thread pool will
-             * auto-delete it
-             */
-            this->pool->waitForDone();
+
+            while (this->cleanup()){
+
+                this->waitfor();
+            }
         }
         else {
-            printf("Server failed open\n");
+            qDebug() << "Server failed open of port " << this->portnum;
 
             this->failedOpen = true;
             this->alive = false;

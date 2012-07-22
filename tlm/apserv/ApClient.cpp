@@ -19,62 +19,132 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include <QThread>
-#include <QDebug>
-
 #include "ApClient.h"
 
-ApClient::ApClient(ApServ& service, QTcpSocket& socket) :
-    QRunnable(),
-    service(service),
-    text(service.getText()),
+
+ApClient::ApClient(ApServ *service, QTcpSocket *socket) :
+    QThread(),
     socket(socket),
+    service(new QPointer<ApServ>(service)),
+    text(new QPointer<ApText>(service->getText())),
     version(0),
-    cycle(service.getClientWait())
+    cycle(service->getClientWait()),
+    alive(false)
 {
+    this->setObjectName(socket->peerAddress().toString());
 }
 ApClient::~ApClient()
 {
-    delete &(this->socket);
-}
-bool ApClient::autoDelete(){
+    delete this->socket;
 
-    return true;
+    delete this->service;
+
+    delete this->text;
+}
+bool ApClient::isAlive(){
+
+    return (this->alive);
+}
+bool ApClient::isConnected(){
+
+    return (QAbstractSocket::ConnectedState == this->socket->state());
+}
+/*
+ * Intended for external (thread) management
+ */
+bool ApClient::isNotAlive(){
+
+    return (!this->alive);
+}
+bool ApClient::isServiceAlive(){
+    ApServ *service = this->service->data();
+    if (NULL != service)
+        return service->isAlive();
+    else
+        return false;
+}
+bool ApClient::isTextReady(){
+    ApText *text = this->text->data();
+    if (NULL != text)
+        return text->isReady(this->version);
+    else
+        return false;
+}
+int ApClient::getTextVersion(){
+    ApText *text = this->text->data();
+    if (NULL != text)
+        return text->getVersion();
+    else
+        return 0;
+}
+ApText* ApClient::getText(){
+
+    return this->text->data();
+}
+void ApClient::textEnter(){
+    ApText *text = this->text->data();
+
+    if (NULL != text){
+
+        text->enter();
+    }
+}
+void ApClient::textExit(){
+    ApText *text = this->text->data();
+
+    if (NULL != text){
+
+        text->exit();
+    }
 }
 void ApClient::run(){
 
-    QThread *thread = QThread::currentThread();
+    this->alive = true;
+
+    this->setPriority(QThread::LowPriority);
 
     bool error = false;
 
-    while (this->service.isAlive() && this->socket.isValid()){
+    while (this->isServiceAlive() && this->isConnected()){
 
-        this->text.enter();
+        this->textEnter();
         /*
          * Polling via read lock on shared data buffer
          */
-        if (this->text.isReady(this->version)){
+        if (this->isTextReady()){
 
-            this->version = this->text.getVersion();
+            this->version = this->getTextVersion();
 
-            error = (-1 == this->socket.write(this->text));
+            ApText *text = this->getText();
+
+            if (NULL != text){
+
+                const ApText& tr = *text;
+
+                error = (-1 == this->socket->write(tr));
+            }
+            else
+                error = true;
         }
 
-        this->text.exit();
+        this->textExit();
 
-        if (error || (!this->service.isAlive())){
-
+        if (error ||
+            (!this->isServiceAlive()) ||
+            (!this->isAlive()))
+        {
             break;
         }
         else {
 
-            //thread->msleep(this->cycle);
+            QThread::msleep(this->cycle);
         }
     }
 
-    qDebug() << ("client shutdown\n");
+    if (this->isServiceAlive()){
 
-    this->socket.close();
+        this->socket->close();
+    }
 
-    qDebug() << ("client end\n");
+    this->alive = false;
 }

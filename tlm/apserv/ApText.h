@@ -21,6 +21,7 @@
 #ifndef _TLM_APTEXT_H
 #define _TLM_APTEXT_H
 
+#include <QObject>
 #include <QByteArray>
 #include <QString>
 #include <QReadWriteLock>
@@ -31,11 +32,11 @@
  *
  * \author John Pritchard, jdp@ulsf.net
  */
-class ApText : public QByteArray
+class ApText : public QObject, public QByteArray
 {
 
 public:
-    ApText();
+    explicit ApText(QObject *parent = 0);
     ~ApText();
     /*
      * Reader
@@ -61,11 +62,11 @@ public:
     /*
      * Writer
      */
-    void update(char *buffer, int length);
+    void update(const char *buffer, int length);
 
-    void update(QByteArray& buffer);
+    void update(const QByteArray& buffer);
 
-    void update(QString& buffer);
+    void update(const QString& buffer);
 
 private:
     QReadWriteLock *lock;

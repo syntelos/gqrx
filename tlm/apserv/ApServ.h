@@ -21,17 +21,15 @@
 #ifndef _TLM_APSERV_H
 #define _TLM_APSERV_H
 
-
-#include <QTcpServer>
-#include <QTcpSocket>
-#include <QThreadPool>
-#include <QRunnable>
 #include <QObject>
+#include <QRunnable>
+#include <QTcpSocket>
+#include <QTcpServer>
 
 class ApServ;
 
-#include "ApClient.h"
 #include "ApText.h"
+#include "ApClient.h"
 
 /*! \brief Data dump service, default port 6170.
  * 
@@ -62,8 +60,13 @@ class ApServ;
  * void its reference to the <ApServ> class -- for example...
  * 
  * \code
- *     this->apserv = 0;
+ *     this->apserv = NULL;
  * \endcode
+ * 
+ * \subsection Cleanup
+ * 
+ * Do not call "delete apserv" directly, as this is done by
+ * <QThreadPool> in the normal shutdown process.
  * 
  *
  * \section Sending data
@@ -150,7 +153,7 @@ class ApServ : public QObject, public QRunnable
 public:
     explicit ApServ(QObject *parent = 0);
     /*
-     * This destructor will block until all clients have terminated
+     * Use shutdown, do not call delete 
      */
     ~ApServ();
     /*
@@ -182,9 +185,18 @@ public:
      */
     unsigned long setServicePeriod(unsigned long millis);
     /*
+     * Default 10
+     */
+    int getNumClients();
+    /*
+     * Define maximum permitted number of clients.  Must be greater
+     * than zero.  Default 10.  No change after starting.
+     */
+    int setNumClients(int num);
+    /*
      * Client reference to the shared data buffer
      */
-    ApText& getText();
+    ApText* getText();
     /*
      * Return true when server listen call returns false, indicating
      * an occupied port number.
@@ -206,35 +218,42 @@ public:
      * Accept no new clients
      */
     void shutdown();
-    /*
-     * Current number of clients
-     */
-    int getNumClients();
 
 public slots:
     /*
      * Modify the shared buffer with content to write to all clients
      */
-    void update(char *buffer, int length);
+    void update(const char *buffer, int length);
     /*
      * Modify the shared buffer with content to write to all clients
      */
-    void update(QByteArray& buffer);
+    void update(const QByteArray& buffer);
     /*
      * Modify the shared buffer with content to write to all clients
      */
-    void update(QString& buffer);
+    void update(const QString& buffer);
+
+protected:
+
+    bool cleanup();
+
+    void waitfor();
+
+    int next();
+
+    void poolset();
 
 private:
     ApText* text;
-    QThreadPool* pool;
+    ApClient** pool;
     QTcpServer *server;
     quint16 portnum;
     unsigned long clientWait;
     unsigned long servicePeriod;
+    int numClients;
     bool failedOpen;
-    bool alive;
-    bool closing;
+    volatile bool alive;
+    volatile bool closing;
 };
 
 #endif

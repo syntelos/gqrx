@@ -174,7 +174,7 @@ void Afsk1200Win::startService(){
 
         QThreadPool::globalInstance()->start(apserv);
 
-        connect(decoder, SIGNAL(newMessage(QString)), apserv, SLOT(update(QString)));
+        QObject::connect(decoder, SIGNAL(newMessage(QString)), apserv, SLOT(update(QString)));
     }
 }
 /*
@@ -186,7 +186,7 @@ void Afsk1200Win::shutdownService(){
 
     if (apserv){
 
-        disconnect(decoder,SLOT(update(QString)));
+        QObject::disconnect(decoder, SIGNAL(newMessage(QString)), apserv, SLOT(update(QString)));
 
         apserv->shutdown();
 

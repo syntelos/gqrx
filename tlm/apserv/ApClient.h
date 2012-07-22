@@ -21,6 +21,10 @@
 #ifndef _TLM_APCLIENT_H
 #define _TLM_APCLIENT_H
 
+#include <QThread>
+#include <QPointer>
+#include <QTcpSocket>
+
 class ApClient;
 
 #include "ApServ.h"
@@ -32,23 +36,34 @@ class ApClient;
  *
  * \author John Pritchard, jdp@ulsf.net
  */
-class ApClient : public QRunnable
+class ApClient : public QThread
 {
+    Q_OBJECT
 
 public:
-    ApClient(ApServ& service, QTcpSocket& socket);
+    ApClient(ApServ *service, QTcpSocket *socket);
     ~ApClient();
 
-    bool autoDelete();
-
+    bool isNotAlive();
+    bool isAlive();
     void run();
 
+protected:
+    bool isConnected();
+    bool isServiceAlive();
+    bool isTextReady();
+    int getTextVersion();
+    ApText* getText();
+    void textEnter();
+    void textExit();
+
 private:
-    ApServ& service;
-    ApText& text;
-    QTcpSocket& socket;
+    QTcpSocket* socket;
+    QPointer<ApServ>* service;
+    QPointer<ApText>* text;
     int version;
     unsigned long cycle;
+    volatile bool alive;
 };
 
 #endif // APCLIENT_H

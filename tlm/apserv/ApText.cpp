@@ -22,7 +22,8 @@
 #include "ApText.h"
 
 
-ApText::ApText() :
+ApText::ApText(QObject *p) :
+    QObject(p),
     QByteArray(),
     lock(new QReadWriteLock()),
     version(0)
@@ -53,7 +54,7 @@ int ApText::getVersion(){
 
     return this->version;
 }
-void ApText::update(char *buffer, int length){
+void ApText::update(const char *buffer, int length){
     if (NULL != buffer && 0 < length){
         this->lock->lockForWrite();
         {
@@ -67,7 +68,7 @@ void ApText::update(char *buffer, int length){
         this->lock->unlock();
     }
 }
-void ApText::update(QByteArray& buffer){
+void ApText::update(const QByteArray& buffer){
     if (0 < buffer.size()){
         this->lock->lockForWrite();
         {
@@ -81,7 +82,7 @@ void ApText::update(QByteArray& buffer){
         this->lock->unlock();
     }
 }
-void ApText::update(QString& buffer){
+void ApText::update(const QString& buffer){
     if (0 < buffer.size()){
         this->lock->lockForWrite();
         {
