@@ -64,6 +64,8 @@ void ApServ::update(const QByteArray& buffer){
 }
 void ApServ::update(const QString& buffer){
 
+    qDebug() << "ApServ update " << buffer;
+
     this->text->update(buffer);
 }
 ApText* ApServ::getText(){

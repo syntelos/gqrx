@@ -113,6 +113,8 @@ void ApClient::run(){
          */
         if (this->isTextReady()){
 
+            qDebug() << "ApClient found update";
+
             this->version = this->getTextVersion();
 
             ApText *text = this->getText();
@@ -122,6 +124,11 @@ void ApClient::run(){
                 const ApText& tr = *text;
 
                 error = (-1 == this->socket->write(tr));
+
+                if (!error)
+                    qDebug() << "ApClient wrote " << tr;
+                else
+                    qDebug() << "ApClient error writing " << tr;
             }
             else
                 error = true;

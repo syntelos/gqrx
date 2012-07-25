@@ -20,6 +20,7 @@
  */
 
 #include "ApText.h"
+#include <QDebug>
 
 
 ApText::ApText(QObject *p) :
@@ -84,7 +85,10 @@ void ApText::update(const QByteArray& buffer){
 }
 void ApText::update(const QString& buffer){
     if (0 < buffer.size()){
+
         this->lock->lockForWrite();
+
+        qDebug() << "ApText update from " << (this->version) << " to " << (this->version+1);
         {
             this->version++;
             if (0 == this->version)
